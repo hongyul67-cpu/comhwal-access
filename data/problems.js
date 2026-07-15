@@ -1,0 +1,72 @@
+/* 컴활 1급 실기 - 데이터베이스(액세스) SQL 쿼리 연습문제
+ * 채점: 학생 SQL과 모범답안 SQL을 같은 테이블에 '실제 실행'해 결과셋을 비교.
+ *   - 모범답안에 ORDER BY가 있으면 순서까지, 없으면 집합(순서무관)으로 비교.
+ */
+window.SQL_TABLES = {
+  '사원': {
+    columns: ['사번', '이름', '부서', '직급', '급여', '입사년도'],
+    rows: [
+      [1, '김철수', '영업', '과장', 450, 2015],
+      [2, '이영희', '기획', '대리', 380, 2019],
+      [3, '박민수', '영업', '사원', 300, 2022],
+      [4, '최지우', '인사', '과장', 420, 2013],
+      [5, '정한길', '영업', '대리', 360, 2020],
+      [6, '강수지', '기획', '사원', 290, 2023],
+    ],
+  },
+  '제품': {
+    columns: ['제품코드', '제품명', '분류', '단가', '재고'],
+    rows: [
+      ['P01', '노트북', '전자', 1200, 15],
+      ['P02', '마우스', '전자', 20, 200],
+      ['P03', '책상', '가구', 150, 30],
+      ['P04', '의자', '가구', 80, 50],
+      ['P05', '모니터', '전자', 300, 40],
+    ],
+  },
+};
+
+window.SQL_PROBLEMS = [
+  { id: 'sel_all', cat: '조회', table: '사원', title: '전체 조회',
+    prompt: "<b>사원</b> 테이블의 <b>모든 열, 모든 행</b>을 조회하시오.",
+    answer: 'SELECT * FROM 사원', hint: 'SELECT * FROM 테이블명' },
+  { id: 'sel_cols', cat: '조회', table: '사원', title: '특정 열 조회',
+    prompt: "사원의 <b>이름</b>과 <b>급여</b>만 조회하시오.",
+    answer: 'SELECT 이름, 급여 FROM 사원', hint: '열은 쉼표(,)로 구분: SELECT 이름, 급여 FROM ...' },
+  { id: 'where_eq', cat: '조건(WHERE)', table: '사원', title: '부서 조건',
+    prompt: "부서가 <b>'영업'</b>인 사원의 <b>이름</b>을 조회하시오.",
+    answer: "SELECT 이름 FROM 사원 WHERE 부서='영업'", hint: "WHERE 부서='영업' (문자는 '작은따옴표')" },
+  { id: 'where_cmp', cat: '조건(WHERE)', table: '사원', title: '급여 비교',
+    prompt: "급여가 <b>400 이상</b>인 사원의 <b>이름</b>과 <b>급여</b>를 조회하시오.",
+    answer: 'SELECT 이름, 급여 FROM 사원 WHERE 급여>=400', hint: 'WHERE 급여>=400' },
+  { id: 'where_and', cat: '조건(WHERE)', table: '사원', title: '복합 조건(AND)',
+    prompt: "부서가 <b>'영업'</b>이면서 급여가 <b>350 이상</b>인 사원의 <b>이름</b>을 조회하시오.",
+    answer: "SELECT 이름 FROM 사원 WHERE 부서='영업' AND 급여>=350", hint: '조건 두 개는 AND로 연결' },
+  { id: 'like1', cat: '조건(LIKE)', table: '사원', title: '이름 패턴',
+    prompt: "이름이 <b>'김'으로 시작</b>하는 사원의 <b>이름</b>을 조회하시오.",
+    answer: "SELECT 이름 FROM 사원 WHERE 이름 LIKE '김*'", hint: "LIKE '김*' (액세스는 * , 표준 SQL은 % — 둘 다 인정)" },
+  { id: 'order_desc', cat: '정렬(ORDER BY)', table: '사원', title: '급여 내림차순',
+    prompt: "<b>급여가 높은 순서</b>로 사원의 <b>이름</b>과 <b>급여</b>를 조회하시오.",
+    answer: 'SELECT 이름, 급여 FROM 사원 ORDER BY 급여 DESC', hint: 'ORDER BY 급여 DESC (내림차순)' },
+  { id: 'distinct1', cat: '중복제거(DISTINCT)', table: '사원', title: '부서 목록',
+    prompt: "사원들이 속한 <b>부서</b>를 <b>중복 없이</b> 조회하시오.",
+    answer: 'SELECT DISTINCT 부서 FROM 사원', hint: 'SELECT DISTINCT 부서 ...' },
+  { id: 'count1', cat: '집계(함수)', table: '사원', title: '전체 인원수',
+    prompt: "전체 <b>사원 수</b>를 조회하시오.",
+    answer: 'SELECT COUNT(*) FROM 사원', hint: 'COUNT(*)는 행의 개수' },
+  { id: 'avg1', cat: '집계(함수)', table: '사원', title: '평균 급여',
+    prompt: "전체 사원 <b>급여의 평균</b>을 조회하시오.",
+    answer: 'SELECT AVG(급여) FROM 사원', hint: 'AVG(급여)' },
+  { id: 'group1', cat: '그룹화(GROUP BY)', table: '사원', title: '부서별 인원수',
+    prompt: "<b>부서별</b> 사원 수를 조회하시오. (부서, 인원수)",
+    answer: 'SELECT 부서, COUNT(*) FROM 사원 GROUP BY 부서', hint: 'GROUP BY 부서 + COUNT(*)' },
+  { id: 'having1', cat: '그룹화(HAVING)', table: '사원', title: '2명 이상 부서',
+    prompt: "사원이 <b>2명 이상</b>인 <b>부서</b>를 조회하시오.",
+    answer: 'SELECT 부서 FROM 사원 GROUP BY 부서 HAVING COUNT(*)>=2', hint: '그룹 조건은 HAVING COUNT(*)>=2' },
+  { id: 'between1', cat: '조건(BETWEEN)', table: '제품', title: '단가 범위',
+    prompt: "<b>제품</b> 테이블에서 단가가 <b>100 이상 400 이하</b>인 <b>제품명</b>을 조회하시오.",
+    answer: 'SELECT 제품명 FROM 제품 WHERE 단가 BETWEEN 100 AND 400', hint: 'WHERE 단가 BETWEEN 100 AND 400' },
+  { id: 'sumif1', cat: '집계(조건)', table: '제품', title: '분류별 재고합',
+    prompt: "분류가 <b>'전자'</b>인 제품의 <b>재고 합계</b>를 조회하시오.",
+    answer: "SELECT SUM(재고) FROM 제품 WHERE 분류='전자'", hint: "WHERE로 거른 뒤 SUM(재고)" },
+];
