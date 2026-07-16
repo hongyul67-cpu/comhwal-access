@@ -103,15 +103,23 @@ function checkAnswer() {
   var stu = SQLEngine.run(raw, tbl);
   if ('error' in stu) { flash('<b>❌ 실행 오류:</b> ' + esc(stu.error), 'no'); return; }
   var model = SQLEngine.run(p.answer, tbl);
-  var ok = !('error' in model) && sameResult(stu, model, model.ordered);
+  // 액션 쿼리(INSERT/UPDATE/DELETE)는 '실행 후 테이블 상태'를, 선택 쿼리는 결과셋을 비교
+  var typeMatch = (!!model.action === !!stu.action);
+  var ok = !('error' in model) && typeMatch && sameResult(stu, model, model.action ? false : model.ordered);
   state.answered = true;
   $('sql').disabled = true;
   var last = state.idx === state.queue.length - 1;
   var head, cls;
-  if (ok) { state.correct++; $('scoreLabel').textContent = state.correct + '점'; head = '<b>✅ 정답!</b> 실행 결과 ' + stu.rows.length + '행'; cls = 'ok'; }
-  else { head = '<b>❌ 오답</b> · 결과가 정답과 다릅니다.'; cls = 'no'; }
+  if (ok) {
+    state.correct++; $('scoreLabel').textContent = state.correct + '점';
+    head = '<b>✅ 정답!</b> ' + (stu.action ? ('실행 후 ' + stu.rows.length + '행') : ('실행 결과 ' + stu.rows.length + '행'));
+    cls = 'ok';
+  } else if (!typeMatch) {
+    head = '<b>❌ 오답</b> · 쿼리 종류가 다릅니다. ' + (model.action ? '데이터를 바꾸는 <b>실행 쿼리</b>가 필요해요.' : '조회하는 <b>SELECT</b>가 필요해요.');
+    cls = 'no';
+  } else { head = '<b>❌ 오답</b> · 결과가 정답과 다릅니다.'; cls = 'no'; }
   $('fb').innerHTML = '<div class="feedback ' + cls + '">' + head +
-    '<div style="margin-top:6px;color:var(--tx2);font-size:13px">내 쿼리 결과</div>' + resultTable(stu) +
+    '<div style="margin-top:6px;color:var(--tx2);font-size:13px">' + (stu.action ? '실행 후 테이블' : '내 쿼리 결과') + '</div>' + resultTable(stu) +
     '<div style="margin-top:10px">모범답안 <span class="ansline">' + esc(p.answer) + '</span></div>' +
     (p.hint ? '<div style="margin-top:6px;color:var(--tx2)">💡 ' + esc(p.hint) + '</div>' : '') +
     '<div class="row" style="margin-top:12px"><button class="btn" onclick="nextProblem()">' +

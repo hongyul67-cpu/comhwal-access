@@ -126,9 +126,97 @@
   }
 
   /* ---------- 실행 ---------- */
+  /* ── 액션 쿼리 (INSERT / UPDATE / DELETE) : 새 테이블 상태를 반환 ── */
+  function runAction(sql, table) {
+    var toks;
+    try { toks = tokenize(sql); } catch (e) { return { error: String(e) }; }
+    var p = 0;
+    function peek() { return toks[p]; }
+    function next() { return toks[p++]; }
+    function isVal(v) { var t = peek(); return t && (t.t === 'id' || t.t === 'kw') && t.v.toUpperCase() === v; }
+    function eat(v) { if (!isVal(v)) throw v + ' 필요'; return next(); }
+    function ident() { var t = next(); if (!t || (t.t !== 'id' && t.t !== 'kw')) throw '이름이 필요'; return t.v; }
+
+    var cols = table.columns;
+    var idx = {}; cols.forEach(function (c, i) { idx[c.toUpperCase()] = i; });
+    function ci(name) { var k = name.toUpperCase(); if (!(k in idx)) throw '없는 컬럼: ' + name; return idx[k]; }
+    var rows = table.rows.map(function (r) { return r.slice(); });   // 깊은 복사
+
+    function cmp(op, a, b) {
+      if (a === null || b === null) return op === '<>' ? (a !== b) : (op === '=' ? (a === b) : false);
+      var na = Number(a), nb = Number(b), num = (typeof a === 'number' || (!isNaN(na) && a !== '')) && (typeof b === 'number' || (!isNaN(nb) && b !== ''));
+      var av = num ? na : String(a), bv = num ? nb : String(b);
+      switch (op) { case '=': return av === bv; case '<>': return av !== bv; case '<': return av < bv; case '>': return av > bv; case '<=': return av <= bv; case '>=': return av >= bv; }
+    }
+    function valNode() {
+      var t = next(); if (!t) throw '값이 필요';
+      return function (row) {
+        // ※ 토크나이저는 값을 t.v 에 담는다 (SELECT용 AST 노드의 .val 과 다름)
+        if (t.t === 'num') return t.v;
+        if (t.t === 'str') return t.v;
+        if (t.t === 'kw' && t.v === 'NULL') return null;
+        if (row && ((t.v + '').toUpperCase() in idx)) return row[ci(t.v)];
+        return t.v;
+      };
+    }
+    function setExpr() {
+      var a = valNode();
+      var nt = peek();
+      // ※ '*' 는 SELECT * 때문에 'star' 토큰으로 나온다 → 곱셈으로도 인정
+      if (nt && (nt.t === 'star' || (nt.t === 'op' && '+-/'.indexOf(nt.v) >= 0))) {
+        var op = (nt.t === 'star') ? '*' : nt.v;
+        next();
+        var b = valNode();
+        return function (row) { var x = Number(a(row)), y = Number(b(row)); return op === '+' ? x + y : op === '-' ? x - y : op === '*' ? x * y : x / y; };
+      }
+      return a;
+    }
+    function parseWhere() {
+      function orE() { var l = andE(); while (isVal('OR')) { next(); var r = andE(), a = l; l = function (row) { return a(row) || r(row); }; } return l; }
+      function andE() { var l = cmpE(); while (isVal('AND')) { next(); var r = cmpE(), a = l; l = function (row) { return a(row) && r(row); }; } return l; }
+      function cmpE() {
+        if (peek() && peek().t === 'lp') { next(); var e = orE(); if (!peek() || peek().t !== 'rp') throw ') 필요'; next(); return e; }
+        var lt = valNode(); var op = (peek() && peek().t === 'op') ? next().v : '='; var rt = valNode();
+        return function (row) { return cmp(op, lt(row), rt(row)); };
+      }
+      return orE();
+    }
+
+    var cmd = next().v.toUpperCase();
+    if (cmd === 'INSERT') {
+      eat('INTO'); ident();
+      var names = null;
+      if (peek() && peek().t === 'lp') { next(); names = [ident()]; while (peek() && peek().t === 'comma') { next(); names.push(ident()); } if (!peek() || peek().t !== 'rp') throw ') 필요'; next(); }
+      eat('VALUES'); if (!peek() || peek().t !== 'lp') throw '( 필요'; next();
+      var vs = [valNode()(null)]; while (peek() && peek().t === 'comma') { next(); vs.push(valNode()(null)); }
+      if (!peek() || peek().t !== 'rp') throw ') 필요'; next();
+      var nm = names || cols;
+      if (nm.length !== vs.length) throw '열 수와 값 수가 다릅니다';
+      var nr = cols.map(function () { return null; });
+      nm.forEach(function (c, i) { nr[ci(c)] = vs[i]; });
+      rows.push(nr);
+    } else if (cmd === 'DELETE') {
+      if (peek() && peek().t === 'star') next();
+      eat('FROM'); ident();
+      var pred = null; if (isVal('WHERE')) { next(); pred = parseWhere(); }
+      rows = rows.filter(function (r) { return pred ? !pred(r) : false; });
+    } else if (cmd === 'UPDATE') {
+      ident(); eat('SET');
+      var sets = []; (function one() { var c = ident(); var e = next(); if (!e || e.v !== '=') throw '= 필요'; sets.push({ c: c, f: setExpr() }); if (peek() && peek().t === 'comma') { next(); one(); } })();
+      var pred2 = null; if (isVal('WHERE')) { next(); pred2 = parseWhere(); }
+      rows.forEach(function (r) { if (!pred2 || pred2(r)) sets.forEach(function (s) { r[ci(s.c)] = s.f(r); }); });
+    } else return { error: '지원하지 않는 명령: ' + cmd };
+    return { columns: cols.slice(), rows: rows, action: true };
+  }
+
   function run(sql, table) {
+    var clean = String(sql).replace(/;\s*$/, '').trim();
+    var head = (clean.split(/\s+/)[0] || '').toUpperCase();
+    if (head === 'INSERT' || head === 'UPDATE' || head === 'DELETE') {
+      try { return runAction(clean, table); } catch (e) { return { error: String(e) }; }
+    }
     var ast;
-    try { ast = parse(String(sql).replace(/;\s*$/, '')); }
+    try { ast = parse(clean); }
     catch (e) { return { error: String(e) }; }
     try {
       var cols = table.columns;
