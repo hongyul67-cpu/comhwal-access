@@ -140,6 +140,8 @@ function showModel() {
 function showResult() {
   hide('practice'); show('result');
   var n = state.queue.length, c = state.correct, pct = Math.round(c / n * 100);
+  /* 랭킹전 — 채점 후 RP 정산 */
+  if (window.RankKit) RankKit.award(pct, '컴활 1급 실기 SQL');
   var emoji = pct >= 90 ? '🏆' : pct >= 70 ? '🎉' : pct >= 40 ? '👍' : '💪';
   var msg = pct >= 90 ? '완벽해요!' : pct >= 70 ? '잘했어요!' : pct >= 40 ? '조금만 더!' : '연습이 필요해요';
   state.durationSec = Math.round((Date.now() - state.startTime) / 1000);
