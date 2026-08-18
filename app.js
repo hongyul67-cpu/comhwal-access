@@ -156,15 +156,28 @@ function showResult() {
 /* ---------- 결과 제출(collector) ---------- */
 function submitEnabled() { return !!(window.ResultCollector && ResultCollector.config && ResultCollector.config.endpoint); }
 function submitBtnHtml() {
-  if (!submitEnabled()) return '';
+  
   return '<div class="row" style="justify-content:center;margin:14px 0 4px">' +
     '<button class="btn green" id="sqlSubmit" onclick="submitResult()">📤 선생님께 결과 제출</button></div>';
 }
+function submitGuide() {
+  alert(['이 링크로는 제출이 되지 않아요.', '',
+    '선생님이 나눠 준 제출용 링크(주소 뒤에 ?rc=... 가 붙은 링크)로',
+    '들어와야 반·번호를 입력하고 결과를 보낼 수 있습니다.', '',
+    '연습은 지금 이대로 계속 하셔도 됩니다.'].join(String.fromCharCode(10)));
+}
 function submitResult() {
-  if (!submitEnabled()) return;
+  if (!submitEnabled()) { submitGuide(); return; }
   var n = state.queue.length, c = state.correct;
-  ResultCollector.config.tool = '컴활1급 실기-데이터베이스' + (state.cat !== '전체' ? (' · ' + state.cat) : '');
-  ResultCollector.open({ score: Math.round(c / n * 100), correct: c, total: n, durationSec: state.durationSec, labels: { score: '정답률', correct: '맞힘', total: '문항수' } });
+  // 시트 탭은 하나로 — 분류는 mode 로 (규약 §1 ①)
+  ResultCollector.config.tool = '컴활 1급 실기-데이터베이스';
+  ResultCollector.open({
+    score: Math.round(c / n * 100), correct: c, total: n,
+    durationSec: state.durationSec,
+    labels: { score: '정답률', correct: '맞힘', total: '문항수' },
+    mode: '데이터베이스 실기 — ' + (state.cat || '전체'),
+    extra: ['SQL 작성'],
+  });
 }
 
 /* ---------- Ctrl+Enter 실행 ---------- */
