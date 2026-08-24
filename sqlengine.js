@@ -3,7 +3,9 @@
  *   table: { columns:[名...], rows:[ [v,...], ... ] }
  * 지원: SELECT [DISTINCT] * | 컬럼/집계 [AS 별칭] , ...
  *       FROM t [WHERE ...] [GROUP BY ...] [HAVING ...] [ORDER BY col [ASC|DESC], ...]
- *       WHERE: AND OR NOT, = <> < > <= >=, LIKE, BETWEEN..AND.., IN(...), 문자'..' 숫자
+ *       SELECT: 열, 집계함수, 계산 필드(중간+기말 AS 총점)
+ *       WHERE: AND OR NOT, = <> < > <= >=, LIKE, BETWEEN..AND.., IN(...), NOT IN/LIKE/BETWEEN,
+ *              산술식(중간+기말, 단가*2), 문자'..' 숫자
  *       집계: COUNT(*) COUNT(col) SUM AVG MAX MIN
  */
 (function () {
@@ -11,6 +13,19 @@
 
   var KW = ['SELECT', 'DISTINCT', 'FROM', 'WHERE', 'GROUP', 'BY', 'HAVING', 'ORDER', 'ASC', 'DESC',
     'AND', 'OR', 'NOT', 'LIKE', 'BETWEEN', 'IN', 'AS', 'IS', 'NULL', 'TRUE', 'FALSE'];
+
+  /* 산술 — 숫자로 바꿔 계산한다. 숫자가 아니면 null(조건에서 걸러짐) */
+  function arith(op, a, b) {
+    var x = Number(a), y = Number(b);
+    if (a === null || b === null || isNaN(x) || isNaN(y)) return null;
+    switch (op) {
+      case '+': return x + y;
+      case '-': return x - y;
+      case '*': return x * y;
+      case '/': return y === 0 ? null : x / y;
+    }
+    return null;
+  }
 
   function tokenize(s) {
     var t = [], i = 0, n = s.length;
@@ -84,10 +99,31 @@
         else if (peek() && peek().t === 'id') { alias = next().v; }
         return { kind: 'agg', fn: fn, arg: arg, alias: alias };
       }
-      var name2 = colName(); var al = name2;
+      // 계산 필드인지 미리 살펴본다 — 이름 뒤에 + - * / 가 오면 식으로 다룬다
+      var save = p;
+      var name2 = colName();
+      var nx = peek();
+      var isExpr = nx && ((nx.t === 'op' && '+-/'.indexOf(nx.v) >= 0) || nx.t === 'star');
+      if (isExpr) {
+        p = save;
+        var node = parseArith();
+        var ea = exprLabel(node);
+        if (isKw('AS')) { next(); ea = colName(); }
+        else if (peek() && peek().t === 'id') { ea = next().v; }
+        return { kind: 'expr', node: node, alias: ea };
+      }
+      var al = name2;
       if (isKw('AS')) { next(); al = colName(); }
       else if (peek() && peek().t === 'id') { al = next().v; }
       return { kind: 'col', col: name2, alias: al };
+    }
+    /* 계산 필드에 이름(AS)을 안 붙였을 때 보여 줄 머리글 — 식을 그대로 되살린다 */
+    function exprLabel(n) {
+      if (!n) return '식';
+      if (n.v === 'arith') return exprLabel(n.l) + n.op + exprLabel(n.r);
+      if (n.v === 'col') return n.name;
+      if (n.v === 'num' || n.v === 'str') return String(n.val);
+      return '식';
     }
 
     /* WHERE/HAVING 식 파서 */
@@ -97,14 +133,36 @@
     function parseNot() { if (isKw('NOT')) { next(); return { op: 'NOT', x: parseNot() }; } return parseCond(); }
     function parseCond() {
       if (peek() && peek().t === 'lp') { next(); var e = parseExpr(); if (!peek() || peek().t !== 'rp') throw ') 필요'; next(); return e; }
-      var left = parseVal();
+      var left = parseArith();
+      // 열 이름 뒤에 오는 NOT — 부서 NOT IN (...), 이름 NOT LIKE '김*', 급여 NOT BETWEEN a AND b
+      var negated = false;
+      if (isKw('NOT') && toks[p + 1] && toks[p + 1].t === 'kw' &&
+          ['IN', 'LIKE', 'BETWEEN'].indexOf(toks[p + 1].v) >= 0) { next(); negated = true; }
+      function maybeNot(node) { return negated ? { op: 'NOT', x: node } : node; }
       var tk3 = peek();
-      if (isKw('BETWEEN')) { next(); var lo = parseVal(); eatKw('AND'); var hi = parseVal(); return { op: 'BETWEEN', x: left, lo: lo, hi: hi }; }
-      if (isKw('IN')) { next(); if (!peek() || peek().t !== 'lp') throw '( 필요'; next(); var list = [parseVal()]; while (peek() && peek().t === 'comma') { next(); list.push(parseVal()); } if (!peek() || peek().t !== 'rp') throw ') 필요'; next(); return { op: 'IN', x: left, list: list }; }
-      if (isKw('LIKE')) { next(); var pat = parseVal(); return { op: 'LIKE', x: left, pat: pat }; }
+      if (isKw('BETWEEN')) { next(); var lo = parseArith(); eatKw('AND'); var hi = parseArith(); return maybeNot({ op: 'BETWEEN', x: left, lo: lo, hi: hi }); }
+      if (isKw('IN')) { next(); if (!peek() || peek().t !== 'lp') throw '( 필요'; next(); var list = [parseArith()]; while (peek() && peek().t === 'comma') { next(); list.push(parseArith()); } if (!peek() || peek().t !== 'rp') throw ') 필요'; next(); return maybeNot({ op: 'IN', x: left, list: list }); }
+      if (isKw('LIKE')) { next(); var pat = parseArith(); return maybeNot({ op: 'LIKE', x: left, pat: pat }); }
       if (isKw('IS')) { next(); var neg = false; if (isKw('NOT')) { next(); neg = true; } eatKw('NULL'); return { op: neg ? 'ISNOTNULL' : 'ISNULL', x: left }; }
-      if (tk3 && tk3.t === 'op') { var o = next().v; return { op: o, l: left, r: parseVal() }; }
+      if (tk3 && tk3.t === 'op' && '= < > <= >= <>'.split(' ').indexOf(tk3.v) >= 0) { var o = next().v; return { op: o, l: left, r: parseArith() }; }
       return left; // 단일 값(불린 컬럼 등)
+    }
+    /* 산술식 — 곱셈·나눗셈이 덧셈·뺄셈보다 먼저.
+       주의: '*'는 op가 아니라 'star' 토큰이라 따로 봐야 한다. */
+    function parseArith() {
+      var l = parseMulDiv();
+      while (peek() && peek().t === 'op' && (peek().v === '+' || peek().v === '-')) {
+        var o = next().v; l = { v: 'arith', op: o, l: l, r: parseMulDiv() };
+      }
+      return l;
+    }
+    function parseMulDiv() {
+      var l = parseVal();
+      while (peek() && ((peek().t === 'op' && peek().v === '/') || peek().t === 'star')) {
+        var o = peek().t === 'star' ? '*' : peek().v; next();
+        l = { v: 'arith', op: o, l: l, r: parseVal() };
+      }
+      return l;
     }
     function parseVal() {
       var tk4 = peek();
@@ -227,6 +285,7 @@
         if (node.v === 'num') return node.val;
         if (node.v === 'str') return node.val;
         if (node.v === 'null') return null;
+        if (node.v === 'arith') return arith(node.op, evalVal(node.l, row), evalVal(node.r, row));
         if (node.v === 'col') return cellByName(row, node.name);
         return null;
       }
@@ -280,6 +339,7 @@
       function rowFor(items, groupRows, keyRow) {
         return items.map(function (it) {
           if (it.kind === 'agg') return aggVal(it.fn, it.arg, groupRows);
+          if (it.kind === 'expr') return evalVal(it.node, keyRow);
           return cellByName(keyRow, it.col);
         });
       }
@@ -322,6 +382,7 @@
       }
       function havingVal(node, groupRows) {
         if (node.v === 'num') return node.val; if (node.v === 'str') return node.val;
+        if (node.v === 'arith') return arith(node.op, havingVal(node.l, groupRows), havingVal(node.r, groupRows));
         if (node.v === 'agg') return aggVal(node.fn, node.arg, groupRows);
         if (node.v === 'col') {
           // 집계 별칭 또는 컬럼

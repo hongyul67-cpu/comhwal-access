@@ -1,0 +1,168 @@
+/* 컴활 1급 실기 - SQL 쿼리 보강 문제
+ *
+ * data/problems.js 다음에 로드되어 window.SQL_PROBLEMS 뒤에 이어 붙는다.
+ * 기존 49문제는 '사원' 표에 몰려 있어(35/49) 제품·성적 표를 더 쓰도록 했고,
+ * BETWEEN·IN·NULL·별칭(AS)·정렬 2차 기준·HAVING 처럼 얇던 유형을 채웠다.
+ * 모범답안은 scratchpad/audit_sql.js 로 실제 실행해 검증한다.
+ */
+(function () {
+  var P = window.SQL_PROBLEMS = window.SQL_PROBLEMS || [];
+
+  P.push(
+    /* ───────── 범위·목록 조건 (BETWEEN · IN) ───────── */
+    { id: 'p_btw1', cat: '조건(BETWEEN·IN)', table: '사원', title: '급여 범위로 찾기',
+      prompt: "급여가 <b>300 이상 400 이하</b>인 사원의 <b>이름</b>과 <b>급여</b>를 조회하시오. (BETWEEN 사용)",
+      answer: 'SELECT 이름, 급여 FROM 사원 WHERE 급여 BETWEEN 300 AND 400',
+      hint: 'BETWEEN 작은값 AND 큰값 — <b>양 끝을 포함</b>합니다.' },
+    { id: 'p_btw2', cat: '조건(BETWEEN·IN)', table: '사원', title: '입사년도 범위',
+      prompt: "<b>2019년부터 2021년</b> 사이에 입사한 사원의 <b>이름</b>과 <b>입사년도</b>를 조회하시오.",
+      answer: 'SELECT 이름, 입사년도 FROM 사원 WHERE 입사년도 BETWEEN 2019 AND 2021',
+      hint: '입사년도 BETWEEN 2019 AND 2021' },
+    { id: 'p_in1', cat: '조건(BETWEEN·IN)', table: '사원', title: '여러 부서를 한 번에',
+      prompt: "부서가 <b>'영업' 또는 '인사'</b>인 사원의 <b>이름</b>과 <b>부서</b>를 조회하시오. (IN 사용)",
+      answer: "SELECT 이름, 부서 FROM 사원 WHERE 부서 IN ('영업','인사')",
+      hint: "IN ('영업','인사') 은 = '영업' OR = '인사' 와 같습니다." },
+    { id: 'p_in2', cat: '조건(BETWEEN·IN)', table: '제품', title: '분류 목록으로 찾기',
+      prompt: "분류가 <b>'가구'</b>인 제품의 <b>제품명</b>과 <b>단가</b>를 조회하시오. (IN 사용)",
+      answer: "SELECT 제품명, 단가 FROM 제품 WHERE 분류 IN ('가구')",
+      hint: "IN 은 값이 하나여도 쓸 수 있습니다." },
+    { id: 'p_notin1', cat: '조건(BETWEEN·IN)', table: '사원', title: '그것만 빼고',
+      prompt: "부서가 <b>'영업'이 아닌</b> 사원의 <b>이름</b>과 <b>부서</b>를 조회하시오.",
+      answer: "SELECT 이름, 부서 FROM 사원 WHERE 부서 NOT IN ('영업')",
+      hint: "NOT IN (...) 또는 부서 &lt;&gt; '영업'" },
+
+    /* ───────── 조건(WHERE) 심화 ───────── */
+    { id: 'p_wh1', cat: '조건(WHERE)', table: '제품', title: '재고가 적은 전자제품',
+      prompt: "분류가 <b>'전자'</b>이면서 재고가 <b>50 이하</b>인 제품의 <b>제품명</b>과 <b>재고</b>를 조회하시오.",
+      answer: "SELECT 제품명, 재고 FROM 제품 WHERE 분류='전자' AND 재고<=50",
+      hint: '조건 두 개를 AND로 묶습니다.' },
+    { id: 'p_wh2', cat: '조건(WHERE)', table: '성적', title: '중간과 기말을 함께 보기',
+      prompt: "중간[중간]이 <b>80 이상</b>이거나 기말[기말]이 <b>90 이상</b>인 학생의 <b>이름</b>을 조회하시오.",
+      answer: 'SELECT 이름 FROM 성적 WHERE 중간>=80 OR 기말>=90',
+      hint: '둘 중 하나만 만족해도 되므로 OR입니다.' },
+    { id: 'p_wh3', cat: '조건(WHERE)', table: '성적', title: '계산 결과로 조건 걸기',
+      prompt: "중간과 기말의 <b>합이 170 이상</b>인 학생의 <b>이름</b>을 조회하시오.",
+      answer: 'SELECT 이름 FROM 성적 WHERE 중간+기말>=170',
+      hint: 'WHERE 절에서도 계산식을 쓸 수 있습니다.' },
+
+    /* ───────── LIKE ───────── */
+    { id: 'p_lk1', cat: '조건(LIKE)', table: '사원', title: '이름이 특정 글자로 끝남',
+      prompt: "이름이 <b>'수'로 끝나는</b> 사원의 <b>이름</b>을 조회하시오.",
+      answer: "SELECT 이름 FROM 사원 WHERE 이름 LIKE '*수'",
+      hint: "끝을 찾을 때는 앞에 * 를 붙입니다. ('*수')" },
+    { id: 'p_lk2', cat: '조건(LIKE)', table: '제품', title: '이름에 그 글자가 들어감',
+      prompt: "제품명에 <b>'모'가 들어가는</b> 제품의 <b>제품명</b>을 조회하시오.",
+      answer: "SELECT 제품명 FROM 제품 WHERE 제품명 LIKE '*모*'",
+      hint: "앞뒤로 * 를 붙이면 '어딘가에 들어감'이 됩니다." },
+    { id: 'p_lk3', cat: '조건(LIKE)', table: '제품', title: '코드 형식으로 찾기',
+      prompt: "제품코드가 <b>'P'로 시작</b>하는 제품의 <b>제품코드</b>와 <b>제품명</b>을 조회하시오.",
+      answer: "SELECT 제품코드, 제품명 FROM 제품 WHERE 제품코드 LIKE 'P*'",
+      hint: "LIKE 'P*'" },
+
+    /* ───────── 정렬 ───────── */
+    { id: 'p_ord1', cat: '정렬(ORDER BY)', table: '제품', title: '단가가 싼 순서로',
+      prompt: "제품을 <b>단가가 낮은 순서</b>로 <b>제품명</b>과 <b>단가</b>를 조회하시오.",
+      answer: 'SELECT 제품명, 단가 FROM 제품 ORDER BY 단가 ASC',
+      hint: 'ASC는 오름차순(생략해도 오름차순)' },
+    { id: 'p_ord2', cat: '정렬(ORDER BY)', table: '사원', title: '기준이 두 개인 정렬',
+      prompt: "사원을 <b>부서 오름차순</b>으로, 같은 부서 안에서는 <b>급여 내림차순</b>으로 <b>부서·이름·급여</b>를 조회하시오.",
+      answer: 'SELECT 부서, 이름, 급여 FROM 사원 ORDER BY 부서 ASC, 급여 DESC',
+      hint: 'ORDER BY 1차기준, 2차기준 — 쉼표로 이어 씁니다.' },
+    { id: 'p_ord3', cat: '정렬(ORDER BY)', table: '성적', title: '조건과 정렬을 함께',
+      prompt: "<b>1반</b> 학생을 <b>기말 점수가 높은 순서</b>로 <b>이름</b>과 <b>기말</b>을 조회하시오.",
+      answer: "SELECT 이름, 기말 FROM 성적 WHERE 반='1반' ORDER BY 기말 DESC",
+      hint: 'WHERE 가 먼저, ORDER BY 가 나중입니다.' },
+
+    /* ───────── 집계 함수 ───────── */
+    { id: 'p_ag1', cat: '집계(함수)', table: '제품', title: '재고 총합',
+      prompt: "제품 <b>재고의 합계</b>를 조회하시오.",
+      answer: 'SELECT SUM(재고) FROM 제품',
+      hint: 'SUM(재고)' },
+    { id: 'p_ag2', cat: '집계(함수)', table: '제품', title: '가장 비싼 단가',
+      prompt: "제품 중 <b>가장 비싼 단가</b>를 조회하시오.",
+      answer: 'SELECT MAX(단가) FROM 제품',
+      hint: 'MAX(단가) · 가장 싼 것은 MIN' },
+    { id: 'p_ag3', cat: '집계(함수)', table: '성적', title: '조건에 맞는 것만 평균',
+      prompt: "<b>2반</b> 학생의 <b>중간 점수 평균</b>을 조회하시오.",
+      answer: "SELECT AVG(중간) FROM 성적 WHERE 반='2반'",
+      hint: 'WHERE로 먼저 걸러낸 뒤 평균을 냅니다.' },
+
+    /* ───────── 그룹화 ───────── */
+    { id: 'p_gb1', cat: '그룹화(GROUP BY)', table: '제품', title: '분류별 재고 합계',
+      prompt: "<b>분류별로</b> 재고의 <b>합계</b>를 <b>분류</b>와 함께 조회하시오.",
+      answer: 'SELECT 분류, SUM(재고) FROM 제품 GROUP BY 분류',
+      hint: 'GROUP BY 분류 — SELECT에는 그룹 기준과 집계 함수만 쓸 수 있습니다.' },
+    { id: 'p_gb2', cat: '그룹화(GROUP BY)', table: '성적', title: '반별 인원수',
+      prompt: "<b>반별</b> 학생 수를 <b>반</b>과 함께 조회하시오.",
+      answer: 'SELECT 반, COUNT(*) FROM 성적 GROUP BY 반',
+      hint: 'GROUP BY 반 + COUNT(*)' },
+    { id: 'p_gb3', cat: '그룹화(GROUP BY)', table: '사원', title: '직급별 평균 급여',
+      prompt: "<b>직급별</b> 급여의 <b>평균</b>을 <b>직급</b>과 함께 조회하시오.",
+      answer: 'SELECT 직급, AVG(급여) FROM 사원 GROUP BY 직급',
+      hint: 'GROUP BY 직급 + AVG(급여)' },
+
+    /* ───────── HAVING ───────── */
+    { id: 'p_hv1', cat: '그룹화(HAVING)', table: '사원', title: '인원이 2명 이상인 부서',
+      prompt: "사원이 <b>2명 이상</b>인 부서의 <b>부서</b>와 <b>인원수</b>를 조회하시오.",
+      answer: 'SELECT 부서, COUNT(*) FROM 사원 GROUP BY 부서 HAVING COUNT(*)>=2',
+      hint: '그룹을 만든 뒤 거르는 것은 WHERE가 아니라 <b>HAVING</b>입니다.' },
+    { id: 'p_hv2', cat: '그룹화(HAVING)', table: '제품', title: '평균 단가가 높은 분류',
+      prompt: "분류별 <b>평균 단가가 200 이상</b>인 분류의 <b>분류</b>와 <b>평균 단가</b>를 조회하시오.",
+      answer: 'SELECT 분류, AVG(단가) FROM 제품 GROUP BY 분류 HAVING AVG(단가)>=200',
+      hint: 'HAVING AVG(단가)>=200' },
+    { id: 'p_hv3', cat: '그룹화(HAVING)', table: '성적', title: 'WHERE와 HAVING을 같이',
+      prompt: "중간이 <b>60 이상</b>인 학생만 대상으로, <b>반별 인원이 2명 이상</b>인 <b>반</b>과 <b>인원수</b>를 조회하시오.",
+      answer: 'SELECT 반, COUNT(*) FROM 성적 WHERE 중간>=60 GROUP BY 반 HAVING COUNT(*)>=2',
+      hint: '<b>WHERE는 그룹 전에</b>, <b>HAVING은 그룹 후에</b> 거릅니다.' },
+
+    /* ───────── 중복 제거 ───────── */
+    { id: 'p_ds1', cat: '중복제거(DISTINCT)', table: '제품', title: '분류 목록만',
+      prompt: "제품의 <b>분류</b>를 <b>중복 없이</b> 조회하시오.",
+      answer: 'SELECT DISTINCT 분류 FROM 제품',
+      hint: 'SELECT DISTINCT 분류 …' },
+    { id: 'p_ds2', cat: '중복제거(DISTINCT)', table: '사원', title: '직급 목록을 순서대로',
+      prompt: "사원의 <b>직급</b>을 <b>중복 없이</b>, <b>가나다 오름차순</b>으로 조회하시오.",
+      answer: 'SELECT DISTINCT 직급 FROM 사원 ORDER BY 직급',
+      hint: 'DISTINCT 와 ORDER BY 를 함께 씁니다.' },
+
+    /* ───────── 실행 쿼리 ───────── */
+    { id: 'p_up1', cat: '실행쿼리(UPDATE)', table: '제품', title: '분류별로 단가 올리기',
+      prompt: "분류가 <b>'가구'</b>인 제품의 <b>단가를 10% 인상</b>하시오.",
+      answer: "UPDATE 제품 SET 단가=단가*1.1 WHERE 분류='가구'",
+      hint: 'SET 단가=단가*1.1 — 원래 값을 계산에 쓸 수 있습니다.' },
+    { id: 'p_up2', cat: '실행쿼리(UPDATE)', table: '성적', title: '조건에 맞는 점수 보정',
+      prompt: "기말이 <b>60 미만</b>인 학생의 <b>기말에 5점을 더하</b>시오.",
+      answer: 'UPDATE 성적 SET 기말=기말+5 WHERE 기말<60',
+      hint: 'SET 기말=기말+5 WHERE 기말&lt;60' },
+    { id: 'p_ins1', cat: '실행쿼리(INSERT)', table: '제품', title: '새 제품 등록',
+      prompt: "제품 테이블에 <b>('P06','키보드','전자',50,120)</b> 한 행을 추가하시오.",
+      answer: "INSERT INTO 제품 VALUES ('P06','키보드','전자',50,120)",
+      hint: 'INSERT INTO 테이블 VALUES (값1, 값2 …) — 열 순서대로 넣습니다.' },
+    { id: 'p_del1', cat: '실행쿼리(DELETE)', table: '제품', title: '재고가 많은 제품 정리',
+      prompt: "재고가 <b>100을 넘는</b> 제품을 삭제하시오.",
+      answer: 'DELETE FROM 제품 WHERE 재고>100',
+      hint: 'DELETE FROM 테이블 WHERE 조건 — WHERE를 빼면 <b>전부 지워집니다</b>.' },
+
+    /* ───────── 계산 필드 (액세스 실기의 '식') ───────── */
+    { id: 'p_ex1', cat: '계산 필드', table: '성적', title: '총점 만들기',
+      prompt: "학생의 <b>이름</b>과, 중간+기말을 더한 값을 <b>총점</b>이라는 이름으로 조회하시오.",
+      answer: 'SELECT 이름, 중간+기말 AS 총점 FROM 성적',
+      hint: '식 뒤에 <b>AS 이름</b>을 붙이면 그 이름이 머리글이 됩니다.' },
+    { id: 'p_ex2', cat: '계산 필드', table: '제품', title: '재고 금액',
+      prompt: "제품의 <b>제품명</b>과, 단가×재고를 <b>재고금액</b>이라는 이름으로 조회하시오.",
+      answer: 'SELECT 제품명, 단가*재고 AS 재고금액 FROM 제품',
+      hint: '곱하기는 <b>*</b> 를 씁니다.' },
+    { id: 'p_ex3', cat: '계산 필드', table: '성적', title: '계산 필드로 정렬',
+      prompt: "<b>이름</b>과 중간+기말(<b>총점</b>)을 <b>총점이 높은 순서</b>로 조회하시오.",
+      answer: 'SELECT 이름, 중간+기말 AS 총점 FROM 성적 ORDER BY 총점 DESC',
+      hint: 'ORDER BY 에 <b>붙여 준 이름(총점)</b>을 그대로 쓸 수 있습니다.' },
+    { id: 'p_ex4', cat: '계산 필드', table: '사원', title: '인상된 급여 미리 보기',
+      prompt: "사원의 <b>이름</b>과, 급여를 <b>10% 올린 값</b>을 <b>인상급여</b>라는 이름으로 조회하시오.",
+      answer: 'SELECT 이름, 급여*1.1 AS 인상급여 FROM 사원',
+      hint: '10% 인상 = 급여*1.1' },
+    { id: 'p_ex5', cat: '계산 필드', table: '제품', title: '계산 결과로 조건까지',
+      prompt: "재고금액(단가×재고)이 <b>10000 이상</b>인 제품의 <b>제품명</b>과 재고금액(<b>재고금액</b>)을 조회하시오.",
+      answer: 'SELECT 제품명, 단가*재고 AS 재고금액 FROM 제품 WHERE 단가*재고>=10000',
+      hint: 'WHERE 절에도 같은 식을 그대로 씁니다.' }
+  );
+})();
