@@ -64,6 +64,25 @@
   .sqlbar textarea{width:100%;background:none;border:none;outline:none;color:var(--tx);resize:vertical;
     font-family:'Consolas','D2Coding',monospace;font-size:15px;padding:12px 13px;line-height:1.5;min-height:64px}
   .toolbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .spacer{flex:1}
+  /* 쿼리를 쓰는 동안 아래에 나타나는 실행 결과 미리보기 */
+  .livebox{margin-top:10px;border:1.5px dashed var(--line);border-radius:10px;padding:10px 12px;background:#12162b}
+  .livebox.ok{border-color:var(--ok);border-style:solid}
+  .livebox.err{border-color:var(--no);border-style:solid}
+  .livehead{font-size:12px;font-weight:800;color:var(--tx2);display:flex;align-items:center;gap:8px}
+  .livebox.ok .livehead{color:var(--ok)} .livebox.err .livehead{color:var(--no)}
+  .livemsg{font-size:13px;color:var(--tx2);margin-top:6px;line-height:1.5}
+  .livebox.err .livemsg{color:#ff9aa5;font-family:'Consolas',monospace}
+  .modes2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 4px}
+  @media(max-width:520px){.modes2{grid-template-columns:1fr}}
+  .mcard{background:var(--card2);border:1.5px solid var(--line);border-radius:12px;padding:13px 15px;
+    cursor:pointer;transition:.12s;display:flex;flex-direction:column;gap:4px}
+  .mcard:hover{transform:translateY(-2px)}
+  .mcard.on{border-color:var(--pri);box-shadow:0 0 0 2px rgba(79,124,255,.3)}
+  .mcard.cls.on{border-color:var(--gold);box-shadow:0 0 0 2px rgba(255,210,63,.28)}
+  .mcard b{font-size:14.5px} .mcard span{font-size:12px;color:var(--tx2);line-height:1.45}
+  .jump{background:var(--card2);color:var(--tx);border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;font-size:13.5px;font-weight:700;max-width:230px}
 
   .feedback{margin-top:14px;padding:14px 16px;border-radius:12px;font-size:14px;line-height:1.6;animation:pop .2s}
   .feedback.ok{background:rgba(39,192,147,.14);border-left:4px solid var(--ok)}
@@ -88,14 +107,38 @@
       <div class="badge">컴퓨터활용능력 1급 실기</div>
       <h1>SQL 쿼리 연습소 · 데이터베이스</h1>
       <div style="color:var(--tx2);font-size:14px">실제 <b style="color:var(--tx)">SQL을 직접 작성</b>하면, 테이블에 진짜로 실행해서 결과로 채점해요.</div>
-      <h2>연습 범위 선택</h2>
-      <div class="chips" id="catChips"></div>
-      <div class="row" style="margin-top:14px">
-        <button class="btn" style="flex:1" onclick="startPractice()">연습 시작 ▶</button>
+      <h2>모드 선택</h2>
+      <div class="modes2">
+        <div class="mcard cls on" id="mcClass" onclick="pickMode('class')">
+          <b>👩‍🏫 함께 풀기 (수업용)</b><span><b style="color:var(--gold)">순서 고정</b> · 1번부터 차례대로 · 앞뒤로 이동 · 번호로 바로 가기</span>
+        </div>
+        <div class="mcard" id="mcPractice" onclick="pickMode('practice')">
+          <b>📚 혼자 연습 (랜덤)</b><span>문제가 <b style="color:var(--pri2)">섞여서</b> 나와요 · 바로 채점 · 힌트·모범답안</span>
+        </div>
       </div>
-      <div class="note">
-        <b>사용법</b> · 문제의 테이블을 보고 <b>SELECT 문</b>을 작성한 뒤 <kbd>Ctrl</kbd>+<kbd>Enter</kbd> 또는 [실행].<br>
-        서로 다른 SQL이어도 <b>결과가 같으면 정답</b>으로 인정됩니다.
+
+      <div id="classPanel">
+        <h2>수업 범위 선택</h2>
+        <div class="chips" id="catChipsC"></div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn" style="flex:1" onclick="startClass()">함께 풀기 시작 ▶</button>
+        </div>
+        <div class="note" style="border-left-color:var(--gold)">
+          <b>수업용</b> · 문제 순서가 <b>절대 섞이지 않아요</b>. 선생님 화면과 학생 화면의 <b>1번 문제가 같습니다</b>.<br>
+          <b>← 이전</b>으로 되돌아갈 수 있고, <b>번호 선택</b>으로 원하는 문제로 바로 이동할 수 있어요.
+        </div>
+      </div>
+
+      <div id="practicePanel" class="hidden">
+        <h2>연습 범위 선택</h2>
+        <div class="chips" id="catChips"></div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn" style="flex:1" onclick="startPractice()">랜덤 연습 시작 ▶</button>
+        </div>
+        <div class="note">
+          <b>사용법</b> · 문제의 테이블을 보고 <b>SELECT 문</b>을 작성한 뒤 <kbd>Ctrl</kbd>+<kbd>Enter</kbd> 또는 [실행].<br>
+          쓰는 동안 <b>아래에 실행 결과가 실시간으로</b> 나타나요. 서로 다른 SQL이어도 <b>결과가 같으면 정답</b>입니다.
+        </div>
       </div>
     </div>
     <div class="footer">문제는 계속 추가됩니다 · SELECT 쿼리 중심</div>
@@ -118,12 +161,8 @@
       <div class="sqlbar">
         <textarea id="sql" placeholder="SELECT ... FROM ...  (Ctrl+Enter로 실행)" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
       </div>
-      <div class="toolbtns">
-        <button class="btn green" onclick="checkAnswer()">▶ 실행 · 채점</button>
-        <button class="btn sec" onclick="showHint()">💡 힌트</button>
-        <button class="btn ghost" onclick="showModel()">모범답안</button>
-        <button class="btn ghost" onclick="skipProblem()">건너뛰기 →</button>
-      </div>
+      <div class="livebox" id="live"></div>
+      <div class="toolbtns" id="toolBtns"></div>
       <div id="fb"></div>
     </div>
   </section>
